@@ -332,3 +332,151 @@ fn test_trapped_tigers_but_enough_captures() {
     assert_eq!(board.get_winner(), Winner::Tigers);
     assert!(board.is_game_over());
 }
+
+#[cfg(test)]
+mod tests {
+    use baghchal::{Board, Piece};
+
+    #[test]
+    fn test_undo_place_goat() {
+        let mut board = Board::new();
+        let pos = 12; // Center position
+
+        // Place a goat
+        assert!(board.place_goat(pos));
+        assert_eq!(board.cells[pos], Piece::Goat);
+        assert_eq!(board.goats_in_hand, 19);
+
+        // Undo the placement
+        assert!(board.can_undo());
+        assert!(board.undo());
+        assert_eq!(board.cells[pos], Piece::Empty);
+        assert_eq!(board.goats_in_hand, 20);
+    }
+
+    #[test]
+    fn test_undo_move_goat() {
+        let mut board = Board::new();
+        let start_pos = 12;
+        let move_to = 13;
+
+        // Place a goat first
+        assert!(board.place_goat(start_pos));
+        assert_eq!(board.cells[start_pos], Piece::Goat);
+
+        // Move the goat
+        assert!(board.move_goat(start_pos, move_to));
+        assert_eq!(board.cells[start_pos], Piece::Empty);
+        assert_eq!(board.cells[move_to], Piece::Goat);
+
+        // Undo the move
+        assert!(board.can_undo());
+        assert!(board.undo());
+        assert_eq!(board.cells[start_pos], Piece::Goat);
+        assert_eq!(board.cells[move_to], Piece::Empty);
+    }
+
+    #[test]
+    fn test_undo_tiger_move_without_capture() {
+        let mut board = Board::new();
+        let start_pos = 0; // Top-left tiger
+        let move_to = 5;
+
+        // Move tiger
+        assert!(board.move_tiger(start_pos, move_to));
+        assert_eq!(board.cells[start_pos], Piece::Empty);
+        assert_eq!(board.cells[move_to], Piece::Tiger);
+        assert_eq!(board.captured_goats, 0);
+
+        // Undo the move
+        assert!(board.can_undo());
+        assert!(board.undo());
+        assert_eq!(board.cells[start_pos], Piece::Tiger);
+        assert_eq!(board.cells[move_to], Piece::Empty);
+        assert_eq!(board.captured_goats, 0);
+    }
+
+    #[test]
+    fn test_undo_tiger_capture() {
+        let mut board = Board::new();
+        let tiger_pos = 0;
+        let goat_pos = 5;
+        let capture_to = 10;
+
+        // Place a goat to be captured
+        assert!(board.place_goat(goat_pos));
+        assert_eq!(board.cells[goat_pos], Piece::Goat);
+
+        // Capture the goat
+        assert!(board.move_tiger(tiger_pos, capture_to));
+        assert_eq!(board.cells[tiger_pos], Piece::Empty);
+        assert_eq!(board.cells[goat_pos], Piece::Empty);
+        assert_eq!(board.cells[capture_to], Piece::Tiger);
+        assert_eq!(board.captured_goats, 1);
+
+        // Undo the capture
+        assert!(board.can_undo());
+        assert!(board.undo());
+        assert_eq!(board.cells[tiger_pos], Piece::Tiger);
+        assert_eq!(board.cells[goat_pos], Piece::Goat);
+        assert_eq!(board.cells[capture_to], Piece::Empty);
+        assert_eq!(board.captured_goats, 0);
+    }
+
+    #[test]
+    fn test_multiple_undo() {
+        let mut board = Board::new();
+
+        // Make several moves
+        assert!(board.place_goat(12)); // Place goat in center
+        assert_eq!(board.goats_in_hand, 19);
+
+        assert!(board.move_tiger(0, 5)); // Move tiger
+        assert_eq!(board.goats_in_hand, 19);
+
+        assert!(board.place_goat(7)); // Place another goat
+        assert_eq!(board.goats_in_hand, 18);
+
+        // Undo all moves in reverse order
+        assert!(board.can_undo());
+        assert!(board.undo()); // Undo goat placement
+        assert_eq!(board.cells[7], Piece::Empty);
+        assert_eq!(board.goats_in_hand, 19);
+
+        assert!(board.can_undo());
+        assert!(board.undo()); // Undo tiger move
+        assert_eq!(board.cells[0], Piece::Tiger);
+        assert_eq!(board.cells[5], Piece::Empty);
+        assert_eq!(board.goats_in_hand, 19);
+
+        assert!(board.can_undo());
+        assert!(board.undo()); // Undo first goat placement
+        assert_eq!(board.cells[12], Piece::Empty);
+        assert_eq!(board.goats_in_hand, 20);
+
+        // No more moves to undo
+        assert!(!board.can_undo());
+        assert!(!board.undo());
+    }
+
+    #[test]
+    fn test_undo_clears_selection() {
+        let mut board = Board::new();
+
+        // Place a goat and select it
+        assert!(board.place_goat(12));
+        board.select_position(12);
+        assert_eq!(board.selected_position, Some(12));
+
+        // Undo should clear the selection
+        assert!(board.undo());
+        assert_eq!(board.selected_position, None);
+    }
+
+    #[test]
+    fn test_undo_empty_history() {
+        let mut board = Board::new();
+        assert!(!board.can_undo());
+        assert!(!board.undo());
+    }
+}

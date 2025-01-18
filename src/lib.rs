@@ -18,12 +18,29 @@ pub enum Winner {
     None,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum Move {
+    PlaceGoat {
+        position: usize,
+    },
+    MoveGoat {
+        from: usize,
+        to: usize,
+    },
+    MoveTiger {
+        from: usize,
+        to: usize,
+        captured_position: Option<usize>,
+    },
+}
+
 #[derive(Debug)]
 pub struct Board {
     pub cells: [Piece; 25],
     pub goats_in_hand: u32,
     pub captured_goats: u32,
     pub selected_position: Option<usize>,
+    move_history: Vec<Move>, // Track all moves
 }
 
 impl Board {
@@ -39,6 +56,7 @@ impl Board {
             goats_in_hand: 20,
             captured_goats: 0,
             selected_position: None,
+            move_history: Vec::new(),
         }
     }
 
@@ -115,6 +133,7 @@ impl Board {
 
         self.cells[position] = Piece::Goat;
         self.goats_in_hand -= 1;
+        self.move_history.push(Move::PlaceGoat { position });
         true
     }
 
@@ -170,7 +189,8 @@ impl Board {
         }
 
         // If it's a capture move (distance > 1), remove the captured goat
-        if let Some(captured_pos) = self.get_captured_position(from, to) {
+        let captured_position = self.get_captured_position(from, to);
+        if let Some(captured_pos) = captured_position {
             self.cells[captured_pos] = Piece::Empty;
             self.captured_goats += 1;
         }
@@ -178,6 +198,11 @@ impl Board {
         // Make the move
         self.cells[to] = Piece::Tiger;
         self.cells[from] = Piece::Empty;
+        self.move_history.push(Move::MoveTiger {
+            from,
+            to,
+            captured_position,
+        });
         true
     }
 
@@ -314,6 +339,7 @@ impl Board {
         // Make the move
         self.cells[to] = Piece::Goat;
         self.cells[from] = Piece::Empty;
+        self.move_history.push(Move::MoveGoat { from, to });
         true
     }
 
@@ -362,6 +388,41 @@ impl Board {
             }
         }
         moves
+    }
+
+    pub fn can_undo(&self) -> bool {
+        !self.move_history.is_empty()
+    }
+
+    pub fn undo(&mut self) -> bool {
+        if let Some(last_move) = self.move_history.pop() {
+            match last_move {
+                Move::PlaceGoat { position } => {
+                    self.cells[position] = Piece::Empty;
+                    self.goats_in_hand += 1;
+                }
+                Move::MoveGoat { from, to } => {
+                    self.cells[from] = Piece::Goat;
+                    self.cells[to] = Piece::Empty;
+                }
+                Move::MoveTiger {
+                    from,
+                    to,
+                    captured_position,
+                } => {
+                    self.cells[from] = Piece::Tiger;
+                    self.cells[to] = Piece::Empty;
+                    if let Some(captured_pos) = captured_position {
+                        self.cells[captured_pos] = Piece::Goat;
+                        self.captured_goats -= 1;
+                    }
+                }
+            }
+            self.selected_position = None;
+            true
+        } else {
+            false
+        }
     }
 }
 
