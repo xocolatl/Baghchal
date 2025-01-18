@@ -473,59 +473,189 @@ impl Board {
         all_moves
     }
 
+    fn evaluate_position(&self) -> i32 {
+        // If game is over, return a large value
+        match self.get_winner() {
+            Winner::Tigers => return 10000,
+            Winner::Goats => return -10000,
+            Winner::None => {}
+        }
+
+        let mut score = 0;
+
+        // Each captured goat is worth 100 points
+        score += self.captured_goats as i32 * 100;
+
+        // Each trapped tiger is worth -50 points
+        let trapped_tigers = self
+            .cells
+            .iter()
+            .enumerate()
+            .filter(|(_, &piece)| piece == Piece::Tiger)
+            .filter(|&(pos, _)| self.get_valid_tiger_moves(pos).is_empty())
+            .count();
+        score -= trapped_tigers as i32 * 50;
+
+        // Each goat in a strategic position is worth -10 points
+        let strategic_positions = [
+            12, // Center
+            6, 8, 16, 18, // Diagonal positions
+            7, 11, 13, 17, // Adjacent to center
+        ];
+        let strategic_goats = strategic_positions
+            .iter()
+            .filter(|&&pos| self.cells[pos] == Piece::Goat)
+            .count();
+        score -= strategic_goats as i32 * 10;
+
+        // Each goat that can be captured is worth 20 points
+        let capturable_goats = self
+            .cells
+            .iter()
+            .enumerate()
+            .filter(|(_, &piece)| piece == Piece::Tiger)
+            .flat_map(|(pos, _)| self.get_valid_tiger_moves(pos))
+            .filter(|move_pos| {
+                let from = self
+                    .cells
+                    .iter()
+                    .position(|&piece| piece == Piece::Tiger)
+                    .unwrap_or(0);
+                self.get_captured_position(from, move_pos.0).is_some()
+            })
+            .count();
+        score += capturable_goats as i32 * 20;
+
+        score
+    }
+
+    fn minimax(&mut self, depth: i32, mut alpha: i32, mut beta: i32, is_maximizing: bool) -> i32 {
+        if depth == 0 || self.is_game_over() {
+            return self.evaluate_position();
+        }
+
+        if is_maximizing {
+            // Tiger's turn (maximizing)
+            let mut max_eval = i32::MIN;
+            let moves = self.get_all_valid_tiger_moves();
+
+            for (from, to) in moves {
+                // Make move
+                let captured_pos = self.get_captured_position(from, to);
+                let original_from = self.cells[from];
+                let original_to = self.cells[to];
+                let mut original_captured = None;
+                if let Some(pos) = captured_pos {
+                    original_captured = Some((pos, self.cells[pos]));
+                    self.cells[pos] = Piece::Empty;
+                    self.captured_goats += 1;
+                }
+                self.cells[from] = Piece::Empty;
+                self.cells[to] = Piece::Tiger;
+
+                // Recursive evaluation
+                let eval = self.minimax(depth - 1, alpha, beta, false);
+
+                // Undo move
+                self.cells[from] = original_from;
+                self.cells[to] = original_to;
+                if let Some((pos, piece)) = original_captured {
+                    self.cells[pos] = piece;
+                    self.captured_goats -= 1;
+                }
+
+                max_eval = max_eval.max(eval);
+                if max_eval >= beta {
+                    break; // Beta cutoff
+                }
+                alpha = alpha.max(max_eval);
+            }
+            max_eval
+        } else {
+            // Goat's turn (minimizing)
+            let mut min_eval = i32::MAX;
+            let moves = self.get_all_valid_goat_moves();
+
+            for (from, to) in moves {
+                // Make move
+                let original_from = self.cells[from];
+                let original_to = self.cells[to];
+                if from == to {
+                    // Placing a new goat
+                    self.cells[to] = Piece::Goat;
+                    self.goats_in_hand -= 1;
+                } else {
+                    // Moving an existing goat
+                    self.cells[from] = Piece::Empty;
+                    self.cells[to] = Piece::Goat;
+                }
+
+                // Recursive evaluation
+                let eval = self.minimax(depth - 1, alpha, beta, true);
+
+                // Undo move
+                if from == to {
+                    self.cells[to] = Piece::Empty;
+                    self.goats_in_hand += 1;
+                } else {
+                    self.cells[from] = original_from;
+                    self.cells[to] = original_to;
+                }
+
+                min_eval = min_eval.min(eval);
+                if min_eval <= alpha {
+                    break; // Alpha cutoff
+                }
+                beta = beta.min(min_eval);
+            }
+            min_eval
+        }
+    }
+
     pub fn ai_move_tiger(&mut self) -> bool {
         let moves = self.get_all_valid_tiger_moves();
         if moves.is_empty() {
             return false;
         }
 
-        // First priority: Look for capture moves
-        let capture_moves: Vec<_> = moves
-            .iter()
-            .filter(|&(from, to)| self.get_captured_position(*from, *to).is_some())
-            .collect();
+        let mut best_move = None;
+        let mut best_score = i32::MIN;
+        let depth = 4; // Look ahead 4 moves
 
-        if !capture_moves.is_empty() {
-            // Choose a random capture move
-            use rand::seq::SliceRandom;
-            if let Some(&(from, to)) = capture_moves.choose(&mut rand::thread_rng()) {
-                return self.move_tiger(*from, *to);
+        for (from, to) in moves {
+            // Make move
+            let captured_pos = self.get_captured_position(from, to);
+            let original_from = self.cells[from];
+            let original_to = self.cells[to];
+            let mut original_captured = None;
+            if let Some(pos) = captured_pos {
+                original_captured = Some((pos, self.cells[pos]));
+                self.cells[pos] = Piece::Empty;
+                self.captured_goats += 1;
+            }
+            self.cells[from] = Piece::Empty;
+            self.cells[to] = Piece::Tiger;
+
+            // Evaluate position
+            let score = self.minimax(depth - 1, i32::MIN, i32::MAX, false);
+
+            // Undo move
+            self.cells[from] = original_from;
+            self.cells[to] = original_to;
+            if let Some((pos, piece)) = original_captured {
+                self.cells[pos] = piece;
+                self.captured_goats -= 1;
+            }
+
+            // Update best move
+            if score > best_score {
+                best_score = score;
+                best_move = Some((from, to));
             }
         }
 
-        // Second priority: Look for moves that could set up future captures
-        let strategic_moves: Vec<_> = moves
-            .iter()
-            .filter(|&(from, to)| {
-                // Check if this move puts us next to a goat
-                let to_row = *to / 5;
-                let to_col = *to % 5;
-
-                for &(dr, dc) in &[(0, 1), (1, 0), (0, -1), (-1, 0)] {
-                    let new_row = to_row as i32 + dr;
-                    let new_col = to_col as i32 + dc;
-
-                    if new_row >= 0 && new_row < 5 && new_col >= 0 && new_col < 5 {
-                        let pos = (new_row * 5 + new_col) as usize;
-                        if self.cells[pos] == Piece::Goat {
-                            return true;
-                        }
-                    }
-                }
-                false
-            })
-            .collect();
-
-        if !strategic_moves.is_empty() {
-            use rand::seq::SliceRandom;
-            if let Some(&(from, to)) = strategic_moves.choose(&mut rand::thread_rng()) {
-                return self.move_tiger(*from, *to);
-            }
-        }
-
-        // Last resort: Make a random move
-        use rand::seq::SliceRandom;
-        if let Some(&(from, to)) = moves.choose(&mut rand::thread_rng()) {
+        // Make the best move
+        if let Some((from, to)) = best_move {
             return self.move_tiger(from, to);
         }
 
@@ -534,129 +664,70 @@ impl Board {
 
     pub fn ai_move_goat(&mut self) -> bool {
         if self.goats_in_hand > 0 {
-            return self.ai_place_goat();
-        }
+            let mut best_move = None;
+            let mut best_score = i32::MAX;
+            let depth = 4; // Look ahead 4 moves
 
-        // Get all possible moves for existing goats
-        let moves: Vec<(usize, usize)> = (0..25)
-            .filter(|&pos| self.cells[pos] == Piece::Goat)
-            .flat_map(|pos| {
-                self.get_valid_goat_moves(pos)
-                    .into_iter()
-                    .map(move |to| (pos, to.0))
-            })
-            .collect();
+            // Try each empty position
+            for pos in 0..25 {
+                if self.cells[pos] == Piece::Empty {
+                    // Make move
+                    self.cells[pos] = Piece::Goat;
+                    self.goats_in_hand -= 1;
 
-        if moves.is_empty() {
-            return false;
-        }
+                    // Evaluate position
+                    let score = self.minimax(depth - 1, i32::MIN, i32::MAX, true);
 
-        // First priority: Look for moves that trap tigers
-        let trapping_moves: Vec<_> = moves
-            .iter()
-            .filter(|&(from, to)| {
-                // Temporarily make the move
-                let original_from = self.cells[*from];
-                let original_to = self.cells[*to];
-                self.cells[*from] = Piece::Empty;
-                self.cells[*to] = Piece::Goat;
+                    // Undo move
+                    self.cells[pos] = Piece::Empty;
+                    self.goats_in_hand += 1;
 
-                // Check if this creates a trap
-                let tigers_can_move = (0..25)
-                    .filter(|&pos| self.cells[pos] == Piece::Tiger)
-                    .any(|pos| !self.get_valid_tiger_moves(pos).is_empty());
-
-                // Undo the temporary move
-                self.cells[*from] = original_from;
-                self.cells[*to] = original_to;
-
-                !tigers_can_move
-            })
-            .collect();
-
-        if !trapping_moves.is_empty() {
-            use rand::seq::SliceRandom;
-            if let Some(&(from, to)) = trapping_moves.choose(&mut rand::thread_rng()) {
-                return self.move_goat(*from, *to);
-            }
-        }
-
-        // Second priority: Avoid moves that could lead to capture
-        let safe_moves: Vec<_> = moves
-            .iter()
-            .filter(|&(_from, to)| {
-                // Check if this move would put us in danger of capture
-                let to_row = *to / 5;
-                let to_col = *to % 5;
-
-                // Check if there's a tiger that could capture us
-                for &(dr, dc) in &[(0, 1), (1, 0), (0, -1), (-1, 0)] {
-                    let new_row = to_row as i32 + dr;
-                    let new_col = to_col as i32 + dc;
-
-                    if new_row >= 0 && new_row < 5 && new_col >= 0 && new_col < 5 {
-                        let pos = (new_row * 5 + new_col) as usize;
-                        if self.cells[pos] == Piece::Tiger {
-                            // Check if there's an empty space for the tiger to jump to
-                            let jump_row = new_row + dr;
-                            let jump_col = new_col + dc;
-                            if jump_row >= 0 && jump_row < 5 && jump_col >= 0 && jump_col < 5 {
-                                let jump_pos = (jump_row * 5 + jump_col) as usize;
-                                if self.cells[jump_pos] == Piece::Empty {
-                                    return false;
-                                }
-                            }
-                        }
+                    // Update best move
+                    if score < best_score {
+                        best_score = score;
+                        best_move = Some(pos);
                     }
                 }
-                true
-            })
-            .collect();
-
-        if !safe_moves.is_empty() {
-            use rand::seq::SliceRandom;
-            if let Some(&(from, to)) = safe_moves.choose(&mut rand::thread_rng()) {
-                return self.move_goat(*from, *to);
             }
-        }
 
-        // Last resort: Make a random move
-        use rand::seq::SliceRandom;
-        if let Some(&(from, to)) = moves.choose(&mut rand::thread_rng()) {
-            return self.move_goat(from, to);
-        }
-
-        false
-    }
-
-    fn ai_place_goat(&mut self) -> bool {
-        if self.goats_in_hand == 0 {
-            return false;
-        }
-
-        // Priority positions for goat placement
-        let priority_positions = [
-            12, // Center
-            6, 8, 16, 18, // Diagonal positions
-            7, 11, 13, 17, // Adjacent to center
-        ];
-
-        // Try priority positions first
-        for &pos in &priority_positions {
-            if self.cells[pos] == Piece::Empty {
+            // Make the best move
+            if let Some(pos) = best_move {
                 return self.place_goat(pos);
             }
-        }
+        } else {
+            let moves = self.get_all_valid_goat_moves();
+            if moves.is_empty() {
+                return false;
+            }
 
-        // If no priority positions are available, find all valid positions
-        let valid_positions: Vec<usize> = (0..25)
-            .filter(|&pos| self.cells[pos] == Piece::Empty)
-            .collect();
+            let mut best_move = None;
+            let mut best_score = i32::MAX;
+            let depth = 4; // Look ahead 4 moves
 
-        if !valid_positions.is_empty() {
-            use rand::seq::SliceRandom;
-            if let Some(&pos) = valid_positions.choose(&mut rand::thread_rng()) {
-                return self.place_goat(pos);
+            for (from, to) in moves {
+                // Make move
+                let original_from = self.cells[from];
+                let original_to = self.cells[to];
+                self.cells[from] = Piece::Empty;
+                self.cells[to] = Piece::Goat;
+
+                // Evaluate position
+                let score = self.minimax(depth - 1, i32::MIN, i32::MAX, true);
+
+                // Undo move
+                self.cells[from] = original_from;
+                self.cells[to] = original_to;
+
+                // Update best move
+                if score < best_score {
+                    best_score = score;
+                    best_move = Some((from, to));
+                }
+            }
+
+            // Make the best move
+            if let Some((from, to)) = best_move {
+                return self.move_goat(from, to);
             }
         }
 
