@@ -86,6 +86,7 @@ fn main() {
     print_instructions();
 
     let (tiger_player, goat_player) = get_game_mode();
+    let playing_against_ai = tiger_player != goat_player;
 
     println!("Current board:");
     println!("{}", board.display_with_hints());
@@ -112,9 +113,22 @@ fn main() {
                     }
                     if input.eq_ignore_ascii_case("u") || input.eq_ignore_ascii_case("undo") {
                         if board.can_undo() {
-                            board.undo();
+                            // If playing against AI, undo both moves
+                            if playing_against_ai {
+                                if board.can_undo() {
+                                    board.undo(); // Undo AI's move
+                                    if board.can_undo() {
+                                        board.undo(); // Undo player's move
+                                        println!("\nUndid both your move and the AI's response!");
+                                    } else {
+                                        println!("\nUndid the AI's move!");
+                                    }
+                                }
+                            } else {
+                                board.undo(); // Just undo one move in human vs human
+                                println!("\nMove undone!");
+                            }
                             tigers_turn = !tigers_turn;
-                            println!("\nMove undone!");
                             println!("Current board:");
                             println!("{}", board.display_with_hints());
                             continue;
