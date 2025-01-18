@@ -11,6 +11,13 @@ pub enum Piece {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Position(pub usize);
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Winner {
+    Tigers,
+    Goats,
+    None,
+}
+
 #[derive(Debug)]
 pub struct Board {
     pub cells: [Piece; 25],
@@ -48,7 +55,33 @@ impl Board {
     }
 
     pub fn is_game_over(&self) -> bool {
-        self.captured_goats >= 5
+        self.get_winner() != Winner::None
+    }
+
+    pub fn get_winner(&self) -> Winner {
+        // Tigers win if they've captured 5 or more goats
+        if self.captured_goats >= 5 {
+            return Winner::Tigers;
+        }
+
+        // Check if all tigers are trapped
+        let tiger_positions: Vec<usize> = self
+            .cells
+            .iter()
+            .enumerate()
+            .filter(|(_, &piece)| piece == Piece::Tiger)
+            .map(|(pos, _)| pos)
+            .collect();
+
+        // If any tiger can move, game is not over
+        for &pos in &tiger_positions {
+            if !self.get_valid_tiger_moves(pos).is_empty() {
+                return Winner::None;
+            }
+        }
+
+        // If we get here, no tiger can move
+        Winner::Goats
     }
 
     pub fn move_tiger(&mut self, from: usize, to: usize) -> bool {

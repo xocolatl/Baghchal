@@ -1,4 +1,4 @@
-use baghchal::Board;
+use baghchal::{Board, Winner};
 use std::io::{self, Write};
 
 fn get_user_input(prompt: &str) -> Option<usize> {
@@ -105,4 +105,11 @@ fn main() {
     println!("Final board state:");
     println!("{board}");
     println!("Captured goats: {}", board.captured_goats);
+
+    // Show winner
+    match board.get_winner() {
+        Winner::Tigers => println!("Tigers win by capturing {} goats!", board.captured_goats),
+        Winner::Goats => println!("Goats win by trapping all tigers!"),
+        Winner::None => println!("Game ended without a winner."),
+    }
 }
