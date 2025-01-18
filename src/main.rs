@@ -124,20 +124,20 @@ fn get_game_mode_string(tiger_player: Player, goat_player: Player) -> String {
 }
 
 fn print_game_status(board: &Board, tigers_turn: bool, game_mode: &str) {
-    println!("\n╔════════════════════════════════════════════╗");
-    println!("║ {:<44} ║", game_mode);
-    println!("╟────────────────────────────────────────────╢");
-    println!(
-        "║ Current Turn: {:<33} ║",
-        if tigers_turn {
-            "Tigers".red().bold()
-        } else {
-            "Goats".yellow().bold()
-        }
-    );
-    println!("║ Goats in hand: {:<32} ║", board.goats_in_hand);
-    println!("║ Captured goats: {:<31} ║", board.captured_goats);
-    println!("╚════════════════════════════════════════════╝\n");
+    println!("\n╔═══════════════════════════════════════════╗");
+    println!("║ {:<41} ║", game_mode);
+    println!("╟───────────────────────────────────────────╢");
+
+    // Current turn with fixed spacing
+    let turn_text = if tigers_turn {
+        "Tigers".red().bold().to_string()
+    } else {
+        "Goats".yellow().bold().to_string()
+    };
+    println!("║ Current Turn: {:<38} ║", turn_text);
+    println!("║ Goats in hand: {:<26} ║", board.goats_in_hand);
+    println!("║ Captured goats: {:<25} ║", board.captured_goats);
+    println!("╚═══════════════════════════════════════════╝\n");
 }
 
 fn main() {
