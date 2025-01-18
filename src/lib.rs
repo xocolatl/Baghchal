@@ -34,6 +34,12 @@ pub enum Move {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Player {
+    Human,
+    AI,
+}
+
 #[derive(Debug)]
 pub struct Board {
     pub cells: [Piece; 25],
@@ -423,6 +429,238 @@ impl Board {
         } else {
             false
         }
+    }
+
+    pub fn get_all_valid_tiger_moves(&self) -> Vec<(usize, usize)> {
+        let mut all_moves = Vec::new();
+
+        // Find all tigers
+        for (pos, &piece) in self.cells.iter().enumerate() {
+            if piece == Piece::Tiger {
+                // Get valid moves for this tiger
+                for move_pos in self.get_valid_tiger_moves(pos) {
+                    all_moves.push((pos, move_pos.0));
+                }
+            }
+        }
+
+        all_moves
+    }
+
+    pub fn get_all_valid_goat_moves(&self) -> Vec<(usize, usize)> {
+        let mut all_moves = Vec::new();
+
+        if self.goats_in_hand > 0 {
+            // Can place a new goat
+            for pos in 0..25 {
+                if self.cells[pos] == Piece::Empty {
+                    all_moves.push((pos, pos)); // From and to are same for placement
+                }
+            }
+            return all_moves; // Return early to avoid mixing placement and movement
+        }
+
+        // Move existing goats
+        for (pos, &piece) in self.cells.iter().enumerate() {
+            if piece == Piece::Goat {
+                // Get valid moves for this goat
+                for move_pos in self.get_valid_goat_moves(pos) {
+                    all_moves.push((pos, move_pos.0));
+                }
+            }
+        }
+
+        all_moves
+    }
+
+    pub fn ai_move_tiger(&mut self) -> bool {
+        let moves = self.get_all_valid_tiger_moves();
+        if moves.is_empty() {
+            return false;
+        }
+
+        // First priority: Look for capture moves
+        let capture_moves: Vec<_> = moves
+            .iter()
+            .filter(|&(from, to)| self.get_captured_position(*from, *to).is_some())
+            .collect();
+
+        if !capture_moves.is_empty() {
+            // Choose a random capture move
+            use rand::seq::SliceRandom;
+            if let Some(&(from, to)) = capture_moves.choose(&mut rand::thread_rng()) {
+                return self.move_tiger(*from, *to);
+            }
+        }
+
+        // Second priority: Look for moves that could set up future captures
+        let strategic_moves: Vec<_> = moves
+            .iter()
+            .filter(|&(from, to)| {
+                // Check if this move puts us next to a goat
+                let to_row = *to / 5;
+                let to_col = *to % 5;
+
+                for &(dr, dc) in &[(0, 1), (1, 0), (0, -1), (-1, 0)] {
+                    let new_row = to_row as i32 + dr;
+                    let new_col = to_col as i32 + dc;
+
+                    if new_row >= 0 && new_row < 5 && new_col >= 0 && new_col < 5 {
+                        let pos = (new_row * 5 + new_col) as usize;
+                        if self.cells[pos] == Piece::Goat {
+                            return true;
+                        }
+                    }
+                }
+                false
+            })
+            .collect();
+
+        if !strategic_moves.is_empty() {
+            use rand::seq::SliceRandom;
+            if let Some(&(from, to)) = strategic_moves.choose(&mut rand::thread_rng()) {
+                return self.move_tiger(*from, *to);
+            }
+        }
+
+        // Last resort: Make a random move
+        use rand::seq::SliceRandom;
+        if let Some(&(from, to)) = moves.choose(&mut rand::thread_rng()) {
+            return self.move_tiger(from, to);
+        }
+
+        false
+    }
+
+    pub fn ai_move_goat(&mut self) -> bool {
+        if self.goats_in_hand > 0 {
+            return self.ai_place_goat();
+        }
+
+        // Get all possible moves for existing goats
+        let moves: Vec<(usize, usize)> = (0..25)
+            .filter(|&pos| self.cells[pos] == Piece::Goat)
+            .flat_map(|pos| {
+                self.get_valid_goat_moves(pos)
+                    .into_iter()
+                    .map(move |to| (pos, to.0))
+            })
+            .collect();
+
+        if moves.is_empty() {
+            return false;
+        }
+
+        // First priority: Look for moves that trap tigers
+        let trapping_moves: Vec<_> = moves
+            .iter()
+            .filter(|&(from, to)| {
+                // Temporarily make the move
+                let original_from = self.cells[*from];
+                let original_to = self.cells[*to];
+                self.cells[*from] = Piece::Empty;
+                self.cells[*to] = Piece::Goat;
+
+                // Check if this creates a trap
+                let tigers_can_move = (0..25)
+                    .filter(|&pos| self.cells[pos] == Piece::Tiger)
+                    .any(|pos| !self.get_valid_tiger_moves(pos).is_empty());
+
+                // Undo the temporary move
+                self.cells[*from] = original_from;
+                self.cells[*to] = original_to;
+
+                !tigers_can_move
+            })
+            .collect();
+
+        if !trapping_moves.is_empty() {
+            use rand::seq::SliceRandom;
+            if let Some(&(from, to)) = trapping_moves.choose(&mut rand::thread_rng()) {
+                return self.move_goat(*from, *to);
+            }
+        }
+
+        // Second priority: Avoid moves that could lead to capture
+        let safe_moves: Vec<_> = moves
+            .iter()
+            .filter(|&(_from, to)| {
+                // Check if this move would put us in danger of capture
+                let to_row = *to / 5;
+                let to_col = *to % 5;
+
+                // Check if there's a tiger that could capture us
+                for &(dr, dc) in &[(0, 1), (1, 0), (0, -1), (-1, 0)] {
+                    let new_row = to_row as i32 + dr;
+                    let new_col = to_col as i32 + dc;
+
+                    if new_row >= 0 && new_row < 5 && new_col >= 0 && new_col < 5 {
+                        let pos = (new_row * 5 + new_col) as usize;
+                        if self.cells[pos] == Piece::Tiger {
+                            // Check if there's an empty space for the tiger to jump to
+                            let jump_row = new_row + dr;
+                            let jump_col = new_col + dc;
+                            if jump_row >= 0 && jump_row < 5 && jump_col >= 0 && jump_col < 5 {
+                                let jump_pos = (jump_row * 5 + jump_col) as usize;
+                                if self.cells[jump_pos] == Piece::Empty {
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                }
+                true
+            })
+            .collect();
+
+        if !safe_moves.is_empty() {
+            use rand::seq::SliceRandom;
+            if let Some(&(from, to)) = safe_moves.choose(&mut rand::thread_rng()) {
+                return self.move_goat(*from, *to);
+            }
+        }
+
+        // Last resort: Make a random move
+        use rand::seq::SliceRandom;
+        if let Some(&(from, to)) = moves.choose(&mut rand::thread_rng()) {
+            return self.move_goat(from, to);
+        }
+
+        false
+    }
+
+    fn ai_place_goat(&mut self) -> bool {
+        if self.goats_in_hand == 0 {
+            return false;
+        }
+
+        // Priority positions for goat placement
+        let priority_positions = [
+            12, // Center
+            6, 8, 16, 18, // Diagonal positions
+            7, 11, 13, 17, // Adjacent to center
+        ];
+
+        // Try priority positions first
+        for &pos in &priority_positions {
+            if self.cells[pos] == Piece::Empty {
+                return self.place_goat(pos);
+            }
+        }
+
+        // If no priority positions are available, find all valid positions
+        let valid_positions: Vec<usize> = (0..25)
+            .filter(|&pos| self.cells[pos] == Piece::Empty)
+            .collect();
+
+        if !valid_positions.is_empty() {
+            use rand::seq::SliceRandom;
+            if let Some(&pos) = valid_positions.choose(&mut rand::thread_rng()) {
+                return self.place_goat(pos);
+            }
+        }
+
+        false
     }
 }
 

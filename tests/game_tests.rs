@@ -333,6 +333,116 @@ fn test_trapped_tigers_but_enough_captures() {
     assert!(board.is_game_over());
 }
 
+#[test]
+fn test_ai_tiger_captures() {
+    let mut board = Board::new();
+
+    // Place a goat that can be captured
+    board.place_goat(1);
+
+    // AI should choose to capture
+    assert!(board.ai_move_tiger());
+    assert_eq!(board.captured_goats, 1);
+    assert_eq!(board.cells[1], Piece::Empty); // Goat should be captured
+}
+
+#[test]
+fn test_ai_goat_placement() {
+    let mut board = Board::new();
+
+    // First move should prefer center or strategic positions
+    assert!(board.ai_move_goat());
+    assert_eq!(board.goats_in_hand, 19);
+
+    // Verify that a goat was placed in a strategic position
+    let strategic_positions = [12, 6, 8, 16, 18, 7, 11, 13, 17];
+    let placed = strategic_positions
+        .iter()
+        .any(|&pos| board.cells[pos] == Piece::Goat);
+    assert!(placed, "AI should place goat in a strategic position");
+}
+
+#[test]
+fn test_ai_goat_avoids_capture() {
+    let mut board = Board::new();
+
+    // Setup: Place a goat that could be captured
+    assert!(board.place_goat(7));
+    assert_eq!(board.goats_in_hand, 19);
+
+    // Move tiger next to goat
+    assert!(board.move_tiger(4, 3));
+
+    // Verify initial state
+    let initial_goat_count = (0..25)
+        .filter(|&pos| board.cells[pos] == Piece::Goat)
+        .count();
+    assert_eq!(initial_goat_count, 1, "Should start with exactly one goat");
+
+    // Set goats_in_hand to 0 to force movement instead of placement
+    board.goats_in_hand = 0;
+
+    // AI should move the goat to avoid capture
+    assert!(board.ai_move_goat());
+
+    // Verify that the goat moved to a safe position
+    let goat_positions: Vec<usize> = (0..25)
+        .filter(|&pos| board.cells[pos] == Piece::Goat)
+        .collect();
+
+    assert_eq!(goat_positions.len(), 1, "There should be exactly one goat");
+    let goat_pos = goat_positions[0];
+
+    // The goat should not be at position 7 anymore
+    assert_ne!(
+        goat_pos, 7,
+        "Goat should have moved from its original position"
+    );
+
+    // The goat should not be in a position where it can be captured
+    let can_be_captured =
+        (0..25)
+            .filter(|&pos| board.cells[pos] == Piece::Tiger)
+            .any(|tiger_pos| {
+                let valid_moves = board.get_valid_tiger_moves(tiger_pos);
+                valid_moves
+                    .iter()
+                    .any(|move_pos| board.get_captured_position(tiger_pos, move_pos.0).is_some())
+            });
+
+    assert!(
+        !can_be_captured,
+        "Goat should not be in a position where it can be captured"
+    );
+}
+
+#[test]
+fn test_ai_tiger_strategic_move() {
+    let mut board = Board::new();
+
+    // Place a goat
+    board.place_goat(13);
+
+    // AI tiger should move to a position that could lead to a capture
+    assert!(board.ai_move_tiger());
+
+    // Verify that at least one tiger is adjacent to the goat
+    let tiger_adjacent = (0..25)
+        .filter(|&pos| board.cells[pos] == Piece::Tiger)
+        .any(|pos| {
+            let row = pos / 5;
+            let col = pos % 5;
+            let goat_row = 13 / 5;
+            let goat_col = 13 % 5;
+            (row as i32 - goat_row as i32).abs() <= 1 && (col as i32 - goat_col as i32).abs() <= 1
+        });
+
+    assert!(
+        tiger_adjacent,
+        "AI tiger should move strategically near goats"
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use baghchal::{Board, Piece};
