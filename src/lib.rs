@@ -40,7 +40,7 @@ pub enum Player {
     AI,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Board {
     pub cells: [Piece; 25],
     pub goats_in_hand: u32,

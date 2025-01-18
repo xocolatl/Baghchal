@@ -83,11 +83,10 @@ fn print_instructions() {
     println!("\n=== BAGHCHAL ===");
     println!("A traditional board game from Nepal");
     println!("\nPositions are specified using grid coordinates (A1-E5)");
-    print_position_numbers();
     println!("T = Tiger, G = Goat, · = Empty");
     println!("Commands:");
     println!("  - Enter a position (e.g., 'A1') to select a piece");
-    println!("  - Type 'h' or 'help' to show position numbers");
+    println!("  - Type 'h' or 'hint' to get a suggested move");
     println!("  - Type 'u' or 'undo' to take back the last move");
     println!("  - Type 'q' or 'quit' to exit the game");
     println!("  - Press Ctrl+C during AI's turn to interrupt its move");
@@ -140,8 +139,15 @@ fn print_game_status(board: &Board, tigers_turn: bool, game_mode: &str) {
     println!("╚═══════════════════════════════════════════╝\n");
 }
 
+fn get_coordinate_string(pos: usize) -> String {
+    let row = pos / 5 + 1;
+    let col = (pos % 5) as u8 + b'A';
+    format!("{}{}", col as char, row)
+}
+
 fn main() {
     let mut board = Board::new();
+    print_instructions();
 
     let (tiger_player, goat_player) = get_game_mode();
     let playing_against_ai = tiger_player != goat_player;
@@ -155,6 +161,7 @@ fn main() {
     })
     .expect("Error setting Ctrl-C handler");
 
+    println!("\nStarting game...");
     println!("Current board:");
     println!("{}", board.display_with_hints());
 
@@ -173,10 +180,35 @@ fn main() {
         match current_player {
             Player::Human => {
                 if let Some(input) =
-                    get_user_input("Enter command (position, help, undo, or quit): ")
+                    get_user_input("Enter command (position A1-E5, hint, undo, or quit): ")
                 {
-                    if input.eq_ignore_ascii_case("h") || input.eq_ignore_ascii_case("help") {
-                        print_position_numbers();
+                    if input.eq_ignore_ascii_case("h") || input.eq_ignore_ascii_case("hint") {
+                        println!("\n🤔 Thinking of a good move...");
+
+                        // Create a temporary board for AI analysis
+                        let mut temp_board = board.clone();
+                        let success = if tigers_turn {
+                            temp_board.ai_move_tiger()
+                        } else {
+                            temp_board.ai_move_goat()
+                        };
+
+                        if success {
+                            // Compare the boards to find what move was made
+                            for i in 0..25 {
+                                if board.cells[i] != temp_board.cells[i] {
+                                    if temp_board.cells[i] == Piece::Empty {
+                                        // This was the 'from' position
+                                        print!("\n💡 Suggested move: {}", get_coordinate_string(i));
+                                    } else if board.cells[i] == Piece::Empty {
+                                        // This was the 'to' position
+                                        println!(" → {}", get_coordinate_string(i));
+                                    }
+                                }
+                            }
+                        } else {
+                            println!("\n😕 No good moves available!");
+                        }
                         continue;
                     }
                     if input.eq_ignore_ascii_case("u") || input.eq_ignore_ascii_case("undo") {
