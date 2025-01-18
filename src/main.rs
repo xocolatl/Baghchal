@@ -1,5 +1,8 @@
 use baghchal::{Board, Piece, Player, Winner};
 use std::io::{self, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
 
 fn get_user_input(prompt: &str) -> Option<String> {
     loop {
@@ -58,6 +61,7 @@ fn print_instructions() {
     println!("  - Type 'h' or 'help' to show position numbers");
     println!("  - Type 'u' or 'undo' to take back the last move");
     println!("  - Type 'q' or 'quit' to exit the game");
+    println!("  - Press Ctrl+C during AI's turn to interrupt its move");
     println!("===============\n");
 }
 
@@ -88,12 +92,20 @@ fn main() {
     let (tiger_player, goat_player) = get_game_mode();
     let playing_against_ai = tiger_player != goat_player;
 
+    // Set up Ctrl+C handler
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+    ctrlc::set_handler(move || {
+        r.store(false, Ordering::SeqCst);
+    })
+    .expect("Error setting Ctrl-C handler");
+
     println!("Current board:");
     println!("{}", board.display_with_hints());
 
     // Main game loop
     let mut tigers_turn = false;
-    while !board.is_game_over() {
+    while !board.is_game_over() && running.load(Ordering::SeqCst) {
         println!("\n{}'s turn", if tigers_turn { "Tiger" } else { "Goat" });
 
         let current_player = if tigers_turn {
@@ -208,14 +220,32 @@ fn main() {
                 }
             }
             Player::AI => {
-                println!("AI is thinking...");
-                std::thread::sleep(std::time::Duration::from_millis(500)); // Add a small delay for better UX
+                println!("AI is thinking... (Press Ctrl+C to interrupt)");
 
+                // Reset the running flag in case it was interrupted before
+                running.store(true, Ordering::SeqCst);
+
+                let start_time = std::time::Instant::now();
                 let success = if tigers_turn {
                     board.ai_move_tiger()
                 } else {
                     board.ai_move_goat()
                 };
+
+                // If we were interrupted, undo the move and break
+                if !running.load(Ordering::SeqCst) {
+                    println!("\nAI move interrupted!");
+                    if board.can_undo() {
+                        board.undo();
+                    }
+                    break;
+                }
+
+                // Add a small delay if the move was very quick
+                let elapsed = start_time.elapsed();
+                if elapsed < Duration::from_millis(500) {
+                    std::thread::sleep(Duration::from_millis(500) - elapsed);
+                }
 
                 if !success {
                     println!("AI couldn't make a move!");
@@ -237,14 +267,20 @@ fn main() {
         tigers_turn = !tigers_turn;
     }
 
-    println!("\nGame ended!");
+    if !running.load(Ordering::SeqCst) {
+        println!("\nGame interrupted!");
+    } else {
+        println!("\nGame ended!");
+    }
     println!("Final board state:");
     println!("{}", board.display_with_hints());
     println!("Captured goats: {}", board.captured_goats);
 
-    match board.get_winner() {
-        Winner::Tigers => println!("Tigers win by capturing {} goats!", board.captured_goats),
-        Winner::Goats => println!("Goats win by trapping all tigers!"),
-        Winner::None => println!("Game ended without a winner."),
+    if running.load(Ordering::SeqCst) {
+        match board.get_winner() {
+            Winner::Tigers => println!("Tigers win by capturing {} goats!", board.captured_goats),
+            Winner::Goats => println!("Goats win by trapping all tigers!"),
+            Winner::None => println!("Game ended without a winner."),
+        }
     }
 }
