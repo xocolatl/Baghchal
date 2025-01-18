@@ -1,0 +1,45 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'baghchal'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=baghchal",
+                    "--package=baghchal"
+                ],
+                "filter": {
+                    "name": "baghchal",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'baghchal'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=baghchal",
+                    "--package=baghchal"
+                ],
+                "filter": {
+                    "name": "baghchal",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

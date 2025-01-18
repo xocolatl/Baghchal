@@ -1,0 +1,4 @@
+This program implements the board game "Baghchal" in Rust.
+The board has 25 holes, arranged in a 5x5 grid.
+Pawns are pegs that fit into the holes.
+One player plays "tigers" and the other plays "goats".
