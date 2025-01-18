@@ -63,22 +63,6 @@ fn get_position(prompt: &str) -> Option<usize> {
     }
 }
 
-fn print_position_numbers() {
-    println!("\nGrid coordinates (A1-E5):");
-    println!("     A   B   C   D   E");
-    for row in 1..=5 {
-        print!("  {}  ", row);
-        for col in 0..5 {
-            print!("   ");
-            if col < 4 {
-                print!(" ");
-            }
-        }
-        println!();
-    }
-    println!();
-}
-
 fn print_instructions() {
     println!("\n=== BAGHCHAL ===");
     println!("A traditional board game from Nepal");

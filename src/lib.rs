@@ -725,7 +725,7 @@ impl Board {
         false
     }
 
-    fn is_valid_move(&self, from: usize, to: usize) -> bool {
+    fn is_valid_move(&self, _from: usize, to: usize) -> bool {
         if let Some(selected) = self.selected_position {
             match self.cells[selected] {
                 Piece::Tiger => self.get_valid_tiger_moves(selected).contains(&Position(to)),
