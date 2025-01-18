@@ -26,14 +26,7 @@ fn get_user_input(prompt: &str) -> Option<String> {
 }
 
 fn parse_position(input: &str) -> Option<usize> {
-    // Try parsing as a number first (0-24 format)
-    if let Ok(num) = input.parse::<usize>() {
-        if num < 25 {
-            return Some(num);
-        }
-    }
-
-    // Try parsing as coordinate (A1-E5 format)
+    // Only accept coordinate format (A1-E5)
     if input.len() == 2 {
         let chars: Vec<char> = input.chars().collect();
         let col = chars[0].to_ascii_uppercase();
@@ -62,7 +55,7 @@ fn get_position(prompt: &str) -> Option<usize> {
         if let Some(input) = get_user_input(prompt) {
             match parse_position(&input) {
                 Some(pos) => return Some(pos),
-                None => println!("Please enter a valid position (0-24 or A1-E5)"),
+                None => println!("Please enter a valid position (A1-E5)"),
             }
         } else {
             return None;
@@ -76,8 +69,10 @@ fn print_position_numbers() {
     for row in 1..=5 {
         print!("  {}  ", row);
         for col in 0..5 {
-            let pos = (row - 1) * 5 + col;
-            print!("{:2} ", pos);
+            print!("   ");
+            if col < 4 {
+                print!(" ");
+            }
         }
         println!();
     }
@@ -87,13 +82,11 @@ fn print_position_numbers() {
 fn print_instructions() {
     println!("\n=== BAGHCHAL ===");
     println!("A traditional board game from Nepal");
-    println!("\nPositions can be specified in two ways:");
-    println!("1. Grid coordinates (A1-E5):");
+    println!("\nPositions are specified using grid coordinates (A1-E5)");
     print_position_numbers();
-    println!("2. Numbers (0-24, left to right, top to bottom)");
-    println!("\nT = Tiger, G = Goat, · = Empty");
+    println!("T = Tiger, G = Goat, · = Empty");
     println!("Commands:");
-    println!("  - Enter a position (e.g., 'A1' or '0') to select a piece");
+    println!("  - Enter a position (e.g., 'A1') to select a piece");
     println!("  - Type 'h' or 'help' to show position numbers");
     println!("  - Type 'u' or 'undo' to take back the last move");
     println!("  - Type 'q' or 'quit' to exit the game");
@@ -214,10 +207,10 @@ fn main() {
                         }
                     }
 
-                    let position = match input.parse::<usize>() {
-                        Ok(pos) if pos < 25 => pos,
-                        _ => {
-                            println!("Invalid command! Please enter a position (A1-E5 or 0-24), 'h' for help, 'u' for undo, or 'q' to quit");
+                    let position = match parse_position(&input) {
+                        Some(pos) => pos,
+                        None => {
+                            println!("Invalid command! Please enter a position (A1-E5), 'h' for help, 'u' for undo, or 'q' to quit");
                             continue;
                         }
                     };
@@ -234,7 +227,7 @@ fn main() {
                         println!("\nValid moves marked with •");
                         println!("{}", board.display_with_hints());
 
-                        let to = match get_position("Enter position to move to (A1-E5 or 0-24): ") {
+                        let to = match get_position("Enter position to move to (A1-E5): ") {
                             Some(pos) => pos,
                             None => break,
                         };
@@ -265,11 +258,10 @@ fn main() {
                             println!("\nValid moves marked with •");
                             println!("{}", board.display_with_hints());
 
-                            let to =
-                                match get_position("Enter position to move to (A1-E5 or 0-24): ") {
-                                    Some(pos) => pos,
-                                    None => break,
-                                };
+                            let to = match get_position("Enter position to move to (A1-E5): ") {
+                                Some(pos) => pos,
+                                None => break,
+                            };
 
                             if !board.move_goat(position, to) {
                                 println!("Invalid goat move! Try again.");
