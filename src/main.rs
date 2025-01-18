@@ -142,7 +142,6 @@ fn print_game_status(board: &Board, tigers_turn: bool, game_mode: &str) {
 
 fn main() {
     let mut board = Board::new();
-    print_instructions();
 
     let (tiger_player, goat_player) = get_game_mode();
     let playing_against_ai = tiger_player != goat_player;

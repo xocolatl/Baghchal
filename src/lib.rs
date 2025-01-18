@@ -67,54 +67,50 @@ impl Board {
     }
 
     pub fn display_with_hints(&self) -> String {
-        let valid_moves = if let Some(pos) = self.selected_position {
-            match self.cells[pos] {
-                Piece::Tiger => self.get_valid_tiger_moves(pos),
-                Piece::Goat => self.get_valid_goat_moves(pos),
-                Piece::Empty => vec![],
+        let mut output = String::new();
+
+        // Add column labels (A-E)
+        output.push_str("     A   B   C   D   E\n");
+
+        // Top border
+        output.push_str("   ┌───┬───┬───┬───┬───┐\n");
+
+        for row in 0..5 {
+            // Row number
+            output.push_str(&format!(" {} │", row + 1));
+
+            for col in 0..5 {
+                let pos = row * 5 + col;
+                let piece = match self.cells[pos] {
+                    Piece::Empty => {
+                        if self.selected_position.is_some()
+                            && self.is_valid_move(self.selected_position.unwrap(), pos)
+                        {
+                            "•".bright_green()
+                        } else if self.is_diagonal_allowed(pos) {
+                            "×".bright_black()
+                        } else {
+                            " ".normal()
+                        }
+                    }
+                    Piece::Goat => "G".bright_yellow(),
+                    Piece::Tiger => "T".bright_red(),
+                };
+
+                output.push_str(&format!(" {} │", piece));
             }
-        } else {
-            vec![]
-        };
+            output.push('\n');
 
-        let mut display = String::new();
-        for (i, cell) in self.cells.iter().enumerate() {
-            if i % 5 == 0 {
-                display.push_str("   ");
-            }
-
-            let piece = match cell {
-                Piece::Tiger => {
-                    if Some(i) == self.selected_position {
-                        "T".red().bold().on_bright_black().to_string()
-                    } else {
-                        "T".red().bold().to_string()
-                    }
-                }
-                Piece::Goat => {
-                    if Some(i) == self.selected_position {
-                        "G".yellow().bold().on_bright_black().to_string()
-                    } else {
-                        "G".yellow().bold().to_string()
-                    }
-                }
-                Piece::Empty => {
-                    if valid_moves.contains(&Position(i)) {
-                        "•".bright_green().bold().to_string()
-                    } else {
-                        "·".to_string()
-                    }
-                }
-            };
-            display.push_str(&piece);
-
-            if (i + 1) % 5 == 0 {
-                display.push('\n');
-            } else {
-                display.push(' ');
+            // Add horizontal lines between rows, except for the last row
+            if row < 4 {
+                output.push_str("   ├───┼───┼───┼───┼───┤\n");
             }
         }
-        display
+
+        // Bottom border
+        output.push_str("   └───┴───┴───┴───┴───┘\n");
+
+        output
     }
 
     pub fn select_position(&mut self, pos: usize) -> bool {
@@ -213,15 +209,10 @@ impl Board {
     }
 
     pub fn is_diagonal_allowed(&self, pos: usize) -> bool {
-        // In a 5x5 grid, diagonal moves are allowed at these positions:
-        const DIAGONAL_POSITIONS: [usize; 13] = [
-            0, 2, 4, // Top row
-            6, 8, // Second row
-            10, 12, 14, // Middle row
-            16, 18, // Fourth row
-            20, 22, 24, // Bottom row
-        ];
-        DIAGONAL_POSITIONS.contains(&pos)
+        matches!(
+            pos,
+            0 | 2 | 4 | 6 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 22 | 24
+        )
     }
 
     pub fn get_valid_tiger_moves(&self, pos: usize) -> Vec<Position> {
@@ -732,6 +723,31 @@ impl Board {
         }
 
         false
+    }
+
+    fn is_valid_move(&self, from: usize, to: usize) -> bool {
+        if let Some(selected) = self.selected_position {
+            match self.cells[selected] {
+                Piece::Tiger => self.get_valid_tiger_moves(selected).contains(&Position(to)),
+                Piece::Goat => {
+                    if self.goats_in_hand > 0 {
+                        self.get_all_valid_goat_placements().contains(&Position(to))
+                    } else {
+                        self.get_valid_goat_moves(selected).contains(&Position(to))
+                    }
+                }
+                Piece::Empty => false,
+            }
+        } else {
+            false
+        }
+    }
+
+    fn get_all_valid_goat_placements(&self) -> Vec<Position> {
+        (0..25)
+            .filter(|&pos| self.cells[pos] == Piece::Empty)
+            .map(Position)
+            .collect()
     }
 }
 
