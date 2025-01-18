@@ -1,4 +1,5 @@
 use baghchal::{Board, Piece, Player, Winner};
+use colored::Colorize;
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -24,12 +25,44 @@ fn get_user_input(prompt: &str) -> Option<String> {
     }
 }
 
+fn parse_position(input: &str) -> Option<usize> {
+    // Try parsing as a number first (0-24 format)
+    if let Ok(num) = input.parse::<usize>() {
+        if num < 25 {
+            return Some(num);
+        }
+    }
+
+    // Try parsing as coordinate (A1-E5 format)
+    if input.len() == 2 {
+        let chars: Vec<char> = input.chars().collect();
+        let col = chars[0].to_ascii_uppercase();
+        let row = chars[1].to_digit(10);
+
+        if let Some(row_num) = row {
+            if row_num >= 1 && row_num <= 5 {
+                let col_num = match col {
+                    'A' => 0,
+                    'B' => 1,
+                    'C' => 2,
+                    'D' => 3,
+                    'E' => 4,
+                    _ => return None,
+                };
+                return Some((row_num as usize - 1) * 5 + col_num);
+            }
+        }
+    }
+
+    None
+}
+
 fn get_position(prompt: &str) -> Option<usize> {
     loop {
         if let Some(input) = get_user_input(prompt) {
-            match input.parse() {
-                Ok(num) if num < 25 => return Some(num),
-                _ => println!("Please enter a valid position (0-24)"),
+            match parse_position(&input) {
+                Some(pos) => return Some(pos),
+                None => println!("Please enter a valid position (0-24 or A1-E5)"),
             }
         } else {
             return None;
@@ -38,11 +71,12 @@ fn get_position(prompt: &str) -> Option<usize> {
 }
 
 fn print_position_numbers() {
-    println!("\nBoard positions (0-24):");
-    for row in 0..5 {
-        print!("   ");
+    println!("\nGrid coordinates (A1-E5):");
+    println!("     A   B   C   D   E");
+    for row in 1..=5 {
+        print!("  {}  ", row);
         for col in 0..5 {
-            let pos = row * 5 + col;
+            let pos = (row - 1) * 5 + col;
             print!("{:2} ", pos);
         }
         println!();
@@ -53,11 +87,13 @@ fn print_position_numbers() {
 fn print_instructions() {
     println!("\n=== BAGHCHAL ===");
     println!("A traditional board game from Nepal");
-    println!("\nBoard positions are numbered 0-24, left to right, top to bottom:");
+    println!("\nPositions can be specified in two ways:");
+    println!("1. Grid coordinates (A1-E5):");
     print_position_numbers();
-    println!("T = Tiger, G = Goat, · = Empty");
+    println!("2. Numbers (0-24, left to right, top to bottom)");
+    println!("\nT = Tiger, G = Goat, · = Empty");
     println!("Commands:");
-    println!("  - Enter a number (0-24) to select a position");
+    println!("  - Enter a position (e.g., 'A1' or '0') to select a piece");
     println!("  - Type 'h' or 'help' to show position numbers");
     println!("  - Type 'u' or 'undo' to take back the last move");
     println!("  - Type 'q' or 'quit' to exit the game");
@@ -85,12 +121,39 @@ fn get_game_mode() -> (Player, Player) {
     }
 }
 
+fn get_game_mode_string(tiger_player: Player, goat_player: Player) -> String {
+    match (tiger_player, goat_player) {
+        (Player::Human, Player::Human) => "Human vs Human".to_string(),
+        (Player::Human, Player::AI) => "Human (Tigers) vs AI (Goats)".to_string(),
+        (Player::AI, Player::Human) => "AI (Tigers) vs Human (Goats)".to_string(),
+        (Player::AI, Player::AI) => "AI vs AI".to_string(),
+    }
+}
+
+fn print_game_status(board: &Board, tigers_turn: bool, game_mode: &str) {
+    println!("\n╔════════════════════════════════════════════╗");
+    println!("║ {:<44} ║", game_mode);
+    println!("╟────────────────────────────────────────────╢");
+    println!(
+        "║ Current Turn: {:<33} ║",
+        if tigers_turn {
+            "Tigers".red().bold()
+        } else {
+            "Goats".yellow().bold()
+        }
+    );
+    println!("║ Goats in hand: {:<32} ║", board.goats_in_hand);
+    println!("║ Captured goats: {:<31} ║", board.captured_goats);
+    println!("╚════════════════════════════════════════════╝\n");
+}
+
 fn main() {
     let mut board = Board::new();
     print_instructions();
 
     let (tiger_player, goat_player) = get_game_mode();
     let playing_against_ai = tiger_player != goat_player;
+    let game_mode = get_game_mode_string(tiger_player, goat_player);
 
     // Set up Ctrl+C handler
     let running = Arc::new(AtomicBool::new(true));
@@ -106,7 +169,8 @@ fn main() {
     // Main game loop
     let mut tigers_turn = false;
     while !board.is_game_over() && running.load(Ordering::SeqCst) {
-        println!("\n{}'s turn", if tigers_turn { "Tiger" } else { "Goat" });
+        print_game_status(&board, tigers_turn, &game_mode);
+        println!("{}", board.display_with_hints());
 
         let current_player = if tigers_turn {
             tiger_player
@@ -153,7 +217,7 @@ fn main() {
                     let position = match input.parse::<usize>() {
                         Ok(pos) if pos < 25 => pos,
                         _ => {
-                            println!("Invalid command! Please enter a position (0-24), 'u' for undo, or 'q' to quit");
+                            println!("Invalid command! Please enter a position (A1-E5 or 0-24), 'h' for help, 'u' for undo, or 'q' to quit");
                             continue;
                         }
                     };
@@ -170,7 +234,7 @@ fn main() {
                         println!("\nValid moves marked with •");
                         println!("{}", board.display_with_hints());
 
-                        let to = match get_position("Enter position to move to (0-24): ") {
+                        let to = match get_position("Enter position to move to (A1-E5 or 0-24): ") {
                             Some(pos) => pos,
                             None => break,
                         };
@@ -201,10 +265,11 @@ fn main() {
                             println!("\nValid moves marked with •");
                             println!("{}", board.display_with_hints());
 
-                            let to = match get_position("Enter position to move to (0-24): ") {
-                                Some(pos) => pos,
-                                None => break,
-                            };
+                            let to =
+                                match get_position("Enter position to move to (A1-E5 or 0-24): ") {
+                                    Some(pos) => pos,
+                                    None => break,
+                                };
 
                             if !board.move_goat(position, to) {
                                 println!("Invalid goat move! Try again.");
