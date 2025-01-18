@@ -23,22 +23,86 @@ pub struct Board {
     pub cells: [Piece; 25],
     pub goats_in_hand: u32,
     pub captured_goats: u32,
+    pub selected_position: Option<usize>,
 }
 
 impl Board {
     pub fn new() -> Self {
         let mut cells = [Piece::Empty; 25];
-        // Place the four tigers in their initial positions (corners)
-        cells[0] = Piece::Tiger; // Top-left
-        cells[4] = Piece::Tiger; // Top-right
-        cells[20] = Piece::Tiger; // Bottom-left
-        cells[24] = Piece::Tiger; // Bottom-right
+        cells[0] = Piece::Tiger;
+        cells[4] = Piece::Tiger;
+        cells[20] = Piece::Tiger;
+        cells[24] = Piece::Tiger;
 
         Board {
             cells,
-            goats_in_hand: 20, // Game starts with 20 goats to place
+            goats_in_hand: 20,
             captured_goats: 0,
+            selected_position: None,
         }
+    }
+
+    pub fn display_with_hints(&self) -> String {
+        let valid_moves = if let Some(pos) = self.selected_position {
+            match self.cells[pos] {
+                Piece::Tiger => self.get_valid_tiger_moves(pos),
+                Piece::Goat => self.get_valid_goat_moves(pos),
+                Piece::Empty => vec![],
+            }
+        } else {
+            vec![]
+        };
+
+        let mut display = String::new();
+        for (i, cell) in self.cells.iter().enumerate() {
+            if i % 5 == 0 {
+                display.push_str("   ");
+            }
+
+            let piece = match cell {
+                Piece::Tiger => {
+                    if Some(i) == self.selected_position {
+                        "T".red().bold().on_bright_black().to_string()
+                    } else {
+                        "T".red().bold().to_string()
+                    }
+                }
+                Piece::Goat => {
+                    if Some(i) == self.selected_position {
+                        "G".yellow().bold().on_bright_black().to_string()
+                    } else {
+                        "G".yellow().bold().to_string()
+                    }
+                }
+                Piece::Empty => {
+                    if valid_moves.contains(&Position(i)) {
+                        "•".bright_green().bold().to_string()
+                    } else {
+                        "·".to_string()
+                    }
+                }
+            };
+            display.push_str(&piece);
+
+            if (i + 1) % 5 == 0 {
+                display.push('\n');
+            } else {
+                display.push(' ');
+            }
+        }
+        display
+    }
+
+    pub fn select_position(&mut self, pos: usize) -> bool {
+        if pos >= self.cells.len() {
+            return false;
+        }
+        self.selected_position = Some(pos);
+        true
+    }
+
+    pub fn clear_selection(&mut self) {
+        self.selected_position = None;
     }
 
     pub fn place_goat(&mut self, position: usize) -> bool {

@@ -1,4 +1,4 @@
-use baghchal::{Board, Winner};
+use baghchal::{Board, Piece, Winner};
 use std::io::{self, Write};
 
 fn get_user_input(prompt: &str) -> Option<usize> {
@@ -39,7 +39,7 @@ fn main() {
     let mut board = Board::new();
     print_instructions();
     println!("Current board:");
-    println!("{board}");
+    println!("{}", board.display_with_hints());
 
     // Main game loop
     let mut tigers_turn = false;
@@ -48,28 +48,46 @@ fn main() {
 
         if tigers_turn {
             // Tiger's turn
-            let from = match get_user_input("Enter tiger position to move from (0-24): ") {
+            let from = match get_user_input(
+                "Enter tiger position to move from (0-24), or 'q' to quit: ",
+            ) {
                 Some(pos) => pos,
                 None => break,
             };
 
-            let to = match get_user_input("Enter position to move to (0-24): ") {
+            if board.cells[from] != Piece::Tiger {
+                println!("No tiger at that position! Try again.");
+                continue;
+            }
+
+            // Show valid moves for selected tiger
+            board.select_position(from);
+            println!("\nValid moves marked with •");
+            println!("{}", board.display_with_hints());
+
+            let to = match get_user_input("Enter position to move to (0-24), or 'q' to quit: ") {
                 Some(pos) => pos,
                 None => break,
             };
 
             if !board.move_tiger(from, to) {
                 println!("Invalid tiger move! Try again.");
+                board.clear_selection();
                 continue;
             }
             println!("Tiger moved! Captured goats: {}", board.captured_goats);
+            board.clear_selection();
         } else {
             // Goat's turn
             if board.goats_in_hand > 0 {
-                let pos = match get_user_input("Enter position to place goat (0-24): ") {
-                    Some(pos) => pos,
-                    None => break,
-                };
+                println!("\nValid positions marked with •");
+                println!("{}", board.display_with_hints());
+
+                let pos =
+                    match get_user_input("Enter position to place goat (0-24), or 'q' to quit: ") {
+                        Some(pos) => pos,
+                        None => break,
+                    };
 
                 if !board.place_goat(pos) {
                     println!("Invalid move! Try again.");
@@ -77,36 +95,49 @@ fn main() {
                 }
                 println!("Goats remaining to place: {}", board.goats_in_hand);
             } else {
-                // All goats placed, now we can move them
-                let from = match get_user_input("Enter goat position to move from (0-24): ") {
+                let from = match get_user_input(
+                    "Enter goat position to move from (0-24), or 'q' to quit: ",
+                ) {
                     Some(pos) => pos,
                     None => break,
                 };
 
-                let to = match get_user_input("Enter position to move to (0-24): ") {
+                if board.cells[from] != Piece::Goat {
+                    println!("No goat at that position! Try again.");
+                    continue;
+                }
+
+                // Show valid moves for selected goat
+                board.select_position(from);
+                println!("\nValid moves marked with •");
+                println!("{}", board.display_with_hints());
+
+                let to = match get_user_input("Enter position to move to (0-24), or 'q' to quit: ")
+                {
                     Some(pos) => pos,
                     None => break,
                 };
 
                 if !board.move_goat(from, to) {
                     println!("Invalid goat move! Try again.");
+                    board.clear_selection();
                     continue;
                 }
                 println!("Goat moved!");
+                board.clear_selection();
             }
         }
 
         println!("\nCurrent board:");
-        println!("{board}");
+        println!("{}", board.display_with_hints());
         tigers_turn = !tigers_turn;
     }
 
     println!("\nGame ended!");
     println!("Final board state:");
-    println!("{board}");
+    println!("{}", board.display_with_hints());
     println!("Captured goats: {}", board.captured_goats);
 
-    // Show winner
     match board.get_winner() {
         Winner::Tigers => println!("Tigers win by capturing {} goats!", board.captured_goats),
         Winner::Goats => println!("Goats win by trapping all tigers!"),
