@@ -192,6 +192,80 @@ impl Board {
         }
         None
     }
+
+    pub fn move_goat(&mut self, from: usize, to: usize) -> bool {
+        if from >= self.cells.len() || to >= self.cells.len() {
+            return false;
+        }
+
+        // Check if there's actually a goat at the starting position
+        if self.cells[from] != Piece::Goat {
+            return false;
+        }
+
+        // Check if destination is empty
+        if self.cells[to] != Piece::Empty {
+            return false;
+        }
+
+        // Get valid moves for this goat
+        let valid_moves = self.get_valid_goat_moves(from);
+        if !valid_moves.contains(&Position(to)) {
+            return false;
+        }
+
+        // Make the move
+        self.cells[to] = Piece::Goat;
+        self.cells[from] = Piece::Empty;
+        true
+    }
+
+    pub fn get_valid_goat_moves(&self, pos: usize) -> Vec<Position> {
+        let mut moves = Vec::new();
+        let row = pos / 5;
+        let col = pos % 5;
+
+        // Define possible moves (adjacent positions only)
+        let mut possible_moves = vec![
+            (row.wrapping_sub(1), col), // Up
+            (row + 1, col),             // Down
+            (row, col.wrapping_sub(1)), // Left
+            (row, col + 1),             // Right
+        ];
+
+        // Only add diagonal moves if the current position allows them
+        if self.is_diagonal_allowed(pos) {
+            possible_moves.extend_from_slice(&[
+                (row.wrapping_sub(1), col.wrapping_sub(1)), // Up-Left
+                (row.wrapping_sub(1), col + 1),             // Up-Right
+                (row + 1, col.wrapping_sub(1)),             // Down-Left
+                (row + 1, col + 1),                         // Down-Right
+            ]);
+        }
+
+        // Check each possible move
+        for (new_row, new_col) in possible_moves {
+            if new_row < 5 && new_col < 5 {
+                let new_pos = new_row * 5 + new_col;
+
+                // Check if this is a diagonal move
+                let row_diff = (new_row as i32 - row as i32).abs();
+                let col_diff = (new_col as i32 - col as i32).abs();
+                let is_diagonal = row_diff == col_diff;
+
+                // Skip invalid diagonal moves
+                if is_diagonal && !self.is_diagonal_allowed(new_pos) {
+                    continue;
+                }
+
+                // Check if the destination is empty
+                if self.cells[new_pos] == Piece::Empty {
+                    moves.push(Position(new_pos));
+                }
+            }
+        }
+        moves
+    }
 }
 
 impl Display for Board {

@@ -203,3 +203,50 @@ fn test_invalid_diagonal_moves() {
     board = Board::new();
     assert!(!board.move_tiger(0, 7)); // Cannot move to non-diagonal position diagonally
 }
+
+#[test]
+fn test_goat_basic_moves() {
+    let mut board = Board::new();
+    
+    // Place a goat
+    board.place_goat(12); // Center position
+    
+    // Test orthogonal moves
+    assert!(board.move_goat(12, 11)); // Left
+    assert!(board.move_goat(11, 12)); // Right
+    assert!(board.move_goat(12, 7));  // Up
+    assert!(board.move_goat(7, 12));  // Down
+    
+    // Test invalid moves
+    assert!(!board.move_goat(12, 14)); // Too far
+    assert!(!board.move_goat(12, 0));  // To occupied position (tiger)
+    assert!(!board.move_goat(0, 1));   // Moving from tiger position
+}
+
+#[test]
+fn test_goat_diagonal_moves() {
+    let mut board = Board::new();
+    
+    // Place a goat at center (diagonal position)
+    board.place_goat(12);
+    
+    // Test valid diagonal moves
+    assert!(board.move_goat(12, 6));  // Up-left
+    board.cells[12] = Piece::Goat;    // Reset
+    board.cells[6] = Piece::Empty;
+    
+    assert!(board.move_goat(12, 8));  // Up-right
+    board.cells[12] = Piece::Goat;    // Reset
+    board.cells[8] = Piece::Empty;
+    
+    assert!(board.move_goat(12, 16)); // Down-left
+    board.cells[12] = Piece::Goat;    // Reset
+    board.cells[16] = Piece::Empty;
+    
+    assert!(board.move_goat(12, 18)); // Down-right
+    
+    // Test invalid diagonal moves
+    board = Board::new();
+    board.place_goat(7); // Non-diagonal position
+    assert!(!board.move_goat(7, 13)); // Cannot move diagonally from non-diagonal position
+}

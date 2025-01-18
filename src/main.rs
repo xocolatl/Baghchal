@@ -77,8 +77,22 @@ fn main() {
                 }
                 println!("Goats remaining to place: {}", board.goats_in_hand);
             } else {
-                println!("All goats placed! (Goat movement not implemented yet)");
-                break;
+                // All goats placed, now we can move them
+                let from = match get_user_input("Enter goat position to move from (0-24): ") {
+                    Some(pos) => pos,
+                    None => break,
+                };
+
+                let to = match get_user_input("Enter position to move to (0-24): ") {
+                    Some(pos) => pos,
+                    None => break,
+                };
+
+                if !board.move_goat(from, to) {
+                    println!("Invalid goat move! Try again.");
+                    continue;
+                }
+                println!("Goat moved!");
             }
         }
 
