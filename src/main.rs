@@ -50,6 +50,16 @@ fn parse_position(input: &str) -> Option<usize> {
     None
 }
 
+fn parse_move(input: &str) -> Option<(usize, usize)> {
+    let parts: Vec<&str> = input.split_whitespace().collect();
+    if parts.len() == 2 {
+        if let (Some(from), Some(to)) = (parse_position(parts[0]), parse_position(parts[1])) {
+            return Some((from, to));
+        }
+    }
+    None
+}
+
 fn get_position(prompt: &str) -> Option<usize> {
     loop {
         if let Some(input) = get_user_input(prompt) {
@@ -69,11 +79,14 @@ fn print_instructions() {
     println!("\nPositions are specified using grid coordinates (A1-E5)");
     println!("T = Tiger, G = Goat, · = Empty");
     println!("Commands:");
-    println!("  - Enter a position (e.g., 'A1') to select a piece");
+    println!("  - To move a piece:");
+    println!("    • Enter both positions at once (e.g., 'A1 A2')");
+    println!("    • Or enter one position to see valid moves, then enter destination");
+    println!("  - Enter a single position (e.g., 'A1') to place a goat");
     println!("  - Type 'h' or 'hint' to get a suggested move");
     println!("  - Type 'u' or 'undo' to take back the last move");
     println!("  - Type 'q' or 'quit' to exit the game");
-    println!("  - Press Ctrl+C during AI's turn to interrupt its move");
+    println!("  - Press Ctrl+C during AI's turn to interrupt");
     println!("===============\n");
 }
 
@@ -164,7 +177,7 @@ fn main() {
         match current_player {
             Player::Human => {
                 if let Some(input) =
-                    get_user_input("Enter command (position A1-E5, hint, undo, or quit): ")
+                    get_user_input("Enter command (position(s) A1-E5, hint, undo, or quit): ")
                 {
                     if input.eq_ignore_ascii_case("h") || input.eq_ignore_ascii_case("hint") {
                         println!("\n🤔 Thinking of a good move...");
@@ -186,7 +199,7 @@ fn main() {
                                         print!("\n💡 Suggested move: {}", get_coordinate_string(i));
                                     } else if board.cells[i] == Piece::Empty {
                                         // This was the 'to' position
-                                        println!(" → {}", get_coordinate_string(i));
+                                        println!(" {}", get_coordinate_string(i));
                                     }
                                 }
                             }
@@ -222,54 +235,35 @@ fn main() {
                         }
                     }
 
-                    let position = match parse_position(&input) {
-                        Some(pos) => pos,
-                        None => {
-                            println!("Invalid command! Please enter a position (A1-E5), 'h' for help, 'u' for undo, or 'q' to quit");
-                            continue;
-                        }
-                    };
-
                     if tigers_turn {
                         // Tiger's turn
-                        if board.cells[position] != Piece::Tiger {
-                            println!("No tiger at that position! Try again.");
-                            continue;
-                        }
-
-                        // Show valid moves for selected tiger
-                        board.select_position(position);
-                        println!("\nValid moves marked with •");
-                        println!("{}", board.display_with_hints());
-
-                        let to = match get_position("Enter position to move to (A1-E5): ") {
-                            Some(pos) => pos,
-                            None => break,
-                        };
-
-                        if !board.move_tiger(position, to) {
-                            println!("Invalid tiger move! Try again.");
-                            board.clear_selection();
-                            continue;
-                        }
-                        println!("Tiger moved! Captured goats: {}", board.captured_goats);
-                        board.clear_selection();
-                    } else {
-                        // Goat's turn
-                        if board.goats_in_hand > 0 {
-                            if !board.place_goat(position) {
-                                println!("Invalid move! Try again.");
-                                continue;
-                            }
-                            println!("Goats remaining to place: {}", board.goats_in_hand);
-                        } else {
-                            if board.cells[position] != Piece::Goat {
-                                println!("No goat at that position! Try again.");
+                        if let Some((from, to)) = parse_move(&input) {
+                            // Two-step move provided
+                            if board.cells[from] != Piece::Tiger {
+                                println!(
+                                    "No tiger at position {}! Try again.",
+                                    get_coordinate_string(from)
+                                );
                                 continue;
                             }
 
-                            // Show valid moves for selected goat
-                            board.select_position(position);
+                            if !board.move_tiger(from, to) {
+                                println!("Invalid tiger move! Try again.");
+                                continue;
+                            }
+                            println!("Tiger moved! Captured goats: {}", board.captured_goats);
+                        } else if let Some(from) = parse_position(&input) {
+                            // Single-step move: first select the piece
+                            if board.cells[from] != Piece::Tiger {
+                                println!(
+                                    "No tiger at position {}! Try again.",
+                                    get_coordinate_string(from)
+                                );
+                                continue;
+                            }
+
+                            // Show valid moves for selected tiger
+                            board.select_position(from);
                             println!("\nValid moves marked with •");
                             println!("{}", board.display_with_hints());
 
@@ -278,13 +272,77 @@ fn main() {
                                 None => break,
                             };
 
-                            if !board.move_goat(position, to) {
-                                println!("Invalid goat move! Try again.");
+                            if !board.move_tiger(from, to) {
+                                println!("Invalid tiger move! Try again.");
                                 board.clear_selection();
                                 continue;
                             }
-                            println!("Goat moved!");
+                            println!("Tiger moved! Captured goats: {}", board.captured_goats);
                             board.clear_selection();
+                        } else {
+                            println!("Invalid command! Please enter position(s) (e.g., 'A1' or 'A1 A2'), 'h' for hint, 'u' for undo, or 'q' to quit");
+                            continue;
+                        }
+                    } else {
+                        // Goat's turn
+                        if board.goats_in_hand > 0 {
+                            if let Some(pos) = parse_position(&input) {
+                                if !board.place_goat(pos) {
+                                    println!("Invalid move! Try again.");
+                                    continue;
+                                }
+                                println!("Goats remaining to place: {}", board.goats_in_hand);
+                            } else {
+                                println!("Invalid command! Please enter a position (A1-E5), 'h' for hint, 'u' for undo, or 'q' to quit");
+                                continue;
+                            }
+                        } else {
+                            if let Some((from, to)) = parse_move(&input) {
+                                // Two-step move provided
+                                if board.cells[from] != Piece::Goat {
+                                    println!(
+                                        "No goat at position {}! Try again.",
+                                        get_coordinate_string(from)
+                                    );
+                                    continue;
+                                }
+
+                                if !board.move_goat(from, to) {
+                                    println!("Invalid goat move! Try again.");
+                                    continue;
+                                }
+                                println!("Goat moved!");
+                            } else if let Some(from) = parse_position(&input) {
+                                // Single-step move: first select the piece
+                                if board.cells[from] != Piece::Goat {
+                                    println!(
+                                        "No goat at position {}! Try again.",
+                                        get_coordinate_string(from)
+                                    );
+                                    continue;
+                                }
+
+                                // Show valid moves for selected goat
+                                board.select_position(from);
+                                println!("\nValid moves marked with •");
+                                println!("{}", board.display_with_hints());
+
+                                let to = match get_position("Enter position to move to (A1-E5): ") {
+                                    Some(pos) => pos,
+                                    None => break,
+                                };
+
+                                if !board.move_goat(from, to) {
+                                    println!("Invalid goat move! Try again.");
+                                    board.clear_selection();
+                                    continue;
+                                }
+                                println!("Goat moved!");
+                                board.clear_selection();
+                            } else {
+                                println!("Invalid command! Please enter position(s) (e.g., 'A1' or 'A1 A2'), 'h' for hint, 'u' for undo, or 'q' to quit");
+                                continue;
+                            }
                         }
                     }
                 } else {
