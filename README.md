@@ -2,6 +2,8 @@
 
 A Rust implementation of Baghchal (बाघचाल), a traditional board game from Nepal. The game is played between two players, where one controls four tigers trying to capture goats, and the other controls twenty goats trying to trap the tigers.
 
+This entire project was generated through natural language prompts to Claude 3.5 Sonnet (Anthropic) via the Cursor IDE, without any direct human coding. All game logic, AI implementation, and user interface were created through conversational prompts and AI-assisted development. The development process included implementing game rules, board representation, move validation, AI opponent using minimax with alpha-beta pruning, and a colored terminal interface. Each feature was iteratively developed and refined through natural language conversation, with Claude generating the code, fixing bugs, and making improvements based on feedback. The source code and commit history demonstrate this unique development process where a complex game implementation emerged purely from human-AI collaboration, showcasing the capabilities of modern AI coding assistants.
+
 ## Game Rules
 
 ### Board
