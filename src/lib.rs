@@ -1,5 +1,6 @@
 use colored::Colorize;
 use std::fmt::Display;
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Piece {
@@ -520,7 +521,206 @@ impl Board {
         score
     }
 
-    fn minimax(&mut self, depth: i32, mut alpha: i32, mut beta: i32, is_maximizing: bool) -> i32 {
+    pub fn ai_move_tiger(&mut self) -> bool {
+        let moves = self.get_all_valid_tiger_moves();
+        if moves.is_empty() {
+            return false;
+        }
+
+        let mut best_move = None;
+        let mut best_score = i32::MIN;
+        let time_limit = Duration::from_secs(2); // 2 seconds time limit
+        let start_time = Instant::now();
+        let mut current_depth = 1;
+
+        // Iterative deepening
+        while start_time.elapsed() < time_limit {
+            let mut depth_best_move = None;
+            let mut depth_best_score = i32::MIN;
+            let mut search_complete = true;
+
+            for (from, to) in moves.iter() {
+                // Check if we've run out of time
+                if start_time.elapsed() >= time_limit {
+                    search_complete = false;
+                    break;
+                }
+
+                // Make move
+                let captured_pos = self.get_captured_position(*from, *to);
+                let original_from = self.cells[*from];
+                let original_to = self.cells[*to];
+                let mut original_captured = None;
+                if let Some(pos) = captured_pos {
+                    original_captured = Some((pos, self.cells[pos]));
+                    self.cells[pos] = Piece::Empty;
+                    self.captured_goats += 1;
+                }
+                self.cells[*from] = Piece::Empty;
+                self.cells[*to] = Piece::Tiger;
+
+                // Evaluate position
+                let score = self.minimax(
+                    current_depth - 1,
+                    i32::MIN,
+                    i32::MAX,
+                    false,
+                    start_time,
+                    time_limit,
+                );
+
+                // Undo move
+                self.cells[*from] = original_from;
+                self.cells[*to] = original_to;
+                if let Some((pos, piece)) = original_captured {
+                    self.cells[pos] = piece;
+                    self.captured_goats -= 1;
+                }
+
+                // Update best move for current depth
+                if score > depth_best_score {
+                    depth_best_score = score;
+                    depth_best_move = Some((*from, *to));
+                }
+            }
+
+            // Only update the overall best move if we completed the search at this depth
+            if search_complete {
+                best_move = depth_best_move;
+                best_score = depth_best_score;
+                current_depth += 1;
+            } else {
+                break;
+            }
+        }
+
+        // Make the best move found
+        if let Some((from, to)) = best_move {
+            return self.move_tiger(from, to);
+        }
+
+        false
+    }
+
+    pub fn ai_move_goat(&mut self) -> bool {
+        let time_limit = Duration::from_secs(2); // 2 seconds time limit
+        let start_time = Instant::now();
+        let mut current_depth = 1;
+        let mut best_move = None;
+        let mut best_score = i32::MAX;
+
+        while start_time.elapsed() < time_limit {
+            let mut depth_best_move = None;
+            let mut depth_best_score = i32::MAX;
+            let mut search_complete = true;
+
+            if self.goats_in_hand > 0 {
+                // Try each empty position for placement
+                for pos in 0..25 {
+                    if start_time.elapsed() >= time_limit {
+                        search_complete = false;
+                        break;
+                    }
+
+                    if self.cells[pos] == Piece::Empty {
+                        // Make move
+                        self.cells[pos] = Piece::Goat;
+                        self.goats_in_hand -= 1;
+
+                        // Evaluate position
+                        let score = self.minimax(
+                            current_depth - 1,
+                            i32::MIN,
+                            i32::MAX,
+                            true,
+                            start_time,
+                            time_limit,
+                        );
+
+                        // Undo move
+                        self.cells[pos] = Piece::Empty;
+                        self.goats_in_hand += 1;
+
+                        // Update best move for current depth
+                        if score < depth_best_score {
+                            depth_best_score = score;
+                            depth_best_move = Some((pos, pos));
+                        }
+                    }
+                }
+            } else {
+                // Move existing goats
+                let moves = self.get_all_valid_goat_moves();
+                for (from, to) in moves {
+                    if start_time.elapsed() >= time_limit {
+                        search_complete = false;
+                        break;
+                    }
+
+                    // Make move
+                    let original_from = self.cells[from];
+                    let original_to = self.cells[to];
+                    self.cells[from] = Piece::Empty;
+                    self.cells[to] = Piece::Goat;
+
+                    // Evaluate position
+                    let score = self.minimax(
+                        current_depth - 1,
+                        i32::MIN,
+                        i32::MAX,
+                        true,
+                        start_time,
+                        time_limit,
+                    );
+
+                    // Undo move
+                    self.cells[from] = original_from;
+                    self.cells[to] = original_to;
+
+                    // Update best move for current depth
+                    if score < depth_best_score {
+                        depth_best_score = score;
+                        depth_best_move = Some((from, to));
+                    }
+                }
+            }
+
+            // Only update the overall best move if we completed the search at this depth
+            if search_complete {
+                best_move = depth_best_move;
+                best_score = depth_best_score;
+                current_depth += 1;
+            } else {
+                break;
+            }
+        }
+
+        // Make the best move found
+        if let Some((from, to)) = best_move {
+            if from == to {
+                return self.place_goat(from);
+            } else {
+                return self.move_goat(from, to);
+            }
+        }
+
+        false
+    }
+
+    fn minimax(
+        &mut self,
+        depth: i32,
+        mut alpha: i32,
+        mut beta: i32,
+        is_maximizing: bool,
+        start_time: Instant,
+        time_limit: Duration,
+    ) -> i32 {
+        // Check if we've run out of time
+        if start_time.elapsed() >= time_limit {
+            return self.evaluate_position();
+        }
+
         if depth == 0 || self.is_game_over() {
             return self.evaluate_position();
         }
@@ -545,7 +745,7 @@ impl Board {
                 self.cells[to] = Piece::Tiger;
 
                 // Recursive evaluation
-                let eval = self.minimax(depth - 1, alpha, beta, false);
+                let eval = self.minimax(depth - 1, alpha, beta, false, start_time, time_limit);
 
                 // Undo move
                 self.cells[from] = original_from;
@@ -556,10 +756,10 @@ impl Board {
                 }
 
                 max_eval = max_eval.max(eval);
-                if max_eval >= beta {
+                alpha = alpha.max(eval);
+                if beta <= alpha {
                     break; // Beta cutoff
                 }
-                alpha = alpha.max(max_eval);
             }
             max_eval
         } else {
@@ -582,7 +782,7 @@ impl Board {
                 }
 
                 // Recursive evaluation
-                let eval = self.minimax(depth - 1, alpha, beta, true);
+                let eval = self.minimax(depth - 1, alpha, beta, true, start_time, time_limit);
 
                 // Undo move
                 if from == to {
@@ -594,135 +794,13 @@ impl Board {
                 }
 
                 min_eval = min_eval.min(eval);
-                if min_eval <= alpha {
+                beta = beta.min(eval);
+                if beta <= alpha {
                     break; // Alpha cutoff
                 }
-                beta = beta.min(min_eval);
             }
             min_eval
         }
-    }
-
-    pub fn ai_move_tiger(&mut self) -> bool {
-        let moves = self.get_all_valid_tiger_moves();
-        if moves.is_empty() {
-            return false;
-        }
-
-        let mut best_move = None;
-        let mut best_score = i32::MIN;
-        let depth = 4; // Look ahead 4 moves
-
-        for (from, to) in moves {
-            // Make move
-            let captured_pos = self.get_captured_position(from, to);
-            let original_from = self.cells[from];
-            let original_to = self.cells[to];
-            let mut original_captured = None;
-            if let Some(pos) = captured_pos {
-                original_captured = Some((pos, self.cells[pos]));
-                self.cells[pos] = Piece::Empty;
-                self.captured_goats += 1;
-            }
-            self.cells[from] = Piece::Empty;
-            self.cells[to] = Piece::Tiger;
-
-            // Evaluate position
-            let score = self.minimax(depth - 1, i32::MIN, i32::MAX, false);
-
-            // Undo move
-            self.cells[from] = original_from;
-            self.cells[to] = original_to;
-            if let Some((pos, piece)) = original_captured {
-                self.cells[pos] = piece;
-                self.captured_goats -= 1;
-            }
-
-            // Update best move
-            if score > best_score {
-                best_score = score;
-                best_move = Some((from, to));
-            }
-        }
-
-        // Make the best move
-        if let Some((from, to)) = best_move {
-            return self.move_tiger(from, to);
-        }
-
-        false
-    }
-
-    pub fn ai_move_goat(&mut self) -> bool {
-        if self.goats_in_hand > 0 {
-            let mut best_move = None;
-            let mut best_score = i32::MAX;
-            let depth = 4; // Look ahead 4 moves
-
-            // Try each empty position
-            for pos in 0..25 {
-                if self.cells[pos] == Piece::Empty {
-                    // Make move
-                    self.cells[pos] = Piece::Goat;
-                    self.goats_in_hand -= 1;
-
-                    // Evaluate position
-                    let score = self.minimax(depth - 1, i32::MIN, i32::MAX, true);
-
-                    // Undo move
-                    self.cells[pos] = Piece::Empty;
-                    self.goats_in_hand += 1;
-
-                    // Update best move
-                    if score < best_score {
-                        best_score = score;
-                        best_move = Some(pos);
-                    }
-                }
-            }
-
-            // Make the best move
-            if let Some(pos) = best_move {
-                return self.place_goat(pos);
-            }
-        } else {
-            let moves = self.get_all_valid_goat_moves();
-            if moves.is_empty() {
-                return false;
-            }
-
-            let mut best_move = None;
-            let mut best_score = i32::MAX;
-            let depth = 4; // Look ahead 4 moves
-
-            for (from, to) in moves {
-                // Make move
-                let original_from = self.cells[from];
-                let original_to = self.cells[to];
-                self.cells[from] = Piece::Empty;
-                self.cells[to] = Piece::Goat;
-
-                // Evaluate position
-                let score = self.minimax(depth - 1, i32::MIN, i32::MAX, true);
-
-                // Undo move
-                self.cells[from] = original_from;
-                self.cells[to] = original_to;
-
-                // Update best move
-                if score < best_score {
-                    best_score = score;
-                    best_move = Some((from, to));
-                }
-            }
-
-            // Make the best move
-            if let Some((from, to)) = best_move {
-                return self.move_goat(from, to);
-            }
-        }
-
-        false
     }
 
     fn is_valid_move(&self, _from: usize, to: usize) -> bool {
