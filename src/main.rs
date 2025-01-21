@@ -90,6 +90,21 @@ fn print_instructions() {
     println!("===============\n");
 }
 
+fn configure_ai_time_limit(board: &mut Board) {
+    loop {
+        if let Some(input) = get_user_input("Enter AI thinking time in seconds (1-10): ") {
+            if let Ok(seconds) = input.parse::<u64>() {
+                if seconds >= 1 && seconds <= 10 {
+                    board.set_ai_time_limit(seconds);
+                    println!("AI thinking time set to {} seconds", seconds);
+                    break;
+                }
+            }
+            println!("Please enter a number between 1 and 10");
+        }
+    }
+}
+
 fn get_game_mode() -> (Player, Player) {
     loop {
         println!("\nSelect game mode:");
@@ -99,12 +114,19 @@ fn get_game_mode() -> (Player, Player) {
         println!("4. AI vs AI");
 
         if let Some(input) = get_user_input("Enter mode (1-4): ") {
-            match input.as_str() {
-                "1" => return (Player::Human, Player::Human),
-                "2" => return (Player::Human, Player::AI),
-                "3" => return (Player::AI, Player::Human),
-                "4" => return (Player::AI, Player::AI),
-                _ => println!("Invalid choice. Please enter 1, 2, 3, or 4."),
+            let players = match input.as_str() {
+                "1" => Some((Player::Human, Player::Human)),
+                "2" => Some((Player::Human, Player::AI)),
+                "3" => Some((Player::AI, Player::Human)),
+                "4" => Some((Player::AI, Player::AI)),
+                _ => {
+                    println!("Invalid choice. Please enter 1, 2, 3, or 4.");
+                    None
+                }
+            };
+
+            if let Some(players) = players {
+                return players;
             }
         }
     }
@@ -186,6 +208,11 @@ fn main() {
         let (tiger_player, goat_player) = get_game_mode();
         let playing_against_ai = tiger_player != goat_player;
         let game_mode = get_game_mode_string(tiger_player, goat_player);
+
+        // Configure AI time limit if playing against AI
+        if playing_against_ai || (tiger_player == Player::AI && goat_player == Player::AI) {
+            configure_ai_time_limit(&mut board);
+        }
 
         // Set up Ctrl+C handler
         let running = Arc::new(AtomicBool::new(true));
