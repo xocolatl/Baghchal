@@ -41,6 +41,8 @@ This entire project was generated through natural language prompts to Claude 3.5
   - Human vs AI (play as either Tigers or Goats)
   - AI vs AI
 - Smart AI using minimax algorithm with alpha-beta pruning
+  - Configurable thinking time (1-10 seconds)
+  - Iterative deepening for better time management
 - Colored terminal interface
 - Move validation and hints
 - Undo functionality
@@ -66,11 +68,12 @@ This entire project was generated through natural language prompts to Claude 3.5
 
 1. Start the game by running `cargo run`
 2. Select a game mode (1-4)
-3. On your turn:
+3. If playing against AI, set the AI thinking time (1-10 seconds)
+4. On your turn:
    - Enter a position number (0-24) to select a piece
    - For tigers/moved goats: Enter another position to move to
    - Valid moves will be shown with • markers
-4. Special commands:
+5. Special commands:
    - Type 'h' or 'help' to show position numbers
    - Type 'u' or 'undo' to take back moves
    - Type 'q' or 'quit' to exit
