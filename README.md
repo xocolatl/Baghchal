@@ -45,10 +45,10 @@ This entire project was generated through natural language prompts to Claude 3.5
   - Iterative deepening for better time management
 - Colored terminal interface
 - Move validation and hints
+- Move suggestions with hint command
 - Undo functionality
   - Single move undo in Human vs Human
   - Two-move undo in Human vs AI (undoes both your move and AI's response)
-- Help command to show position numbers
 - Ability to interrupt AI's move with Ctrl+C
 
 ## Installation
@@ -74,7 +74,7 @@ This entire project was generated through natural language prompts to Claude 3.5
    - For tigers/moved goats: Enter another position to move to
    - Valid moves will be shown with • markers
 5. Special commands:
-   - Type 'h' or 'help' to show position numbers
+   - Type 'h' or 'hint' to get a suggested move
    - Type 'u' or 'undo' to take back moves
    - Type 'q' or 'quit' to exit
    - Press Ctrl+C during AI's turn to interrupt
