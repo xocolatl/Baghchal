@@ -48,6 +48,7 @@ pub struct Board {
     pub captured_goats: u32,
     pub selected_position: Option<usize>,
     move_history: Vec<Move>, // Track all moves
+    ai_time_limit: Duration, // Add time limit field
 }
 
 impl Board {
@@ -64,7 +65,18 @@ impl Board {
             captured_goats: 0,
             selected_position: None,
             move_history: Vec::new(),
+            ai_time_limit: Duration::from_secs(2), // Default 2 seconds
         }
+    }
+
+    // Add setter for AI time limit
+    pub fn set_ai_time_limit(&mut self, seconds: u64) {
+        self.ai_time_limit = Duration::from_secs(seconds);
+    }
+
+    // Add getter for AI time limit
+    pub fn get_ai_time_limit(&self) -> u64 {
+        self.ai_time_limit.as_secs()
     }
 
     pub fn display_with_hints(&self) -> String {
@@ -529,19 +541,18 @@ impl Board {
 
         let mut best_move = None;
         let mut best_score = i32::MIN;
-        let time_limit = Duration::from_secs(2); // 2 seconds time limit
         let start_time = Instant::now();
         let mut current_depth = 1;
 
         // Iterative deepening
-        while start_time.elapsed() < time_limit {
+        while start_time.elapsed() < self.ai_time_limit {
             let mut depth_best_move = None;
             let mut depth_best_score = i32::MIN;
             let mut search_complete = true;
 
             for (from, to) in moves.iter() {
                 // Check if we've run out of time
-                if start_time.elapsed() >= time_limit {
+                if start_time.elapsed() >= self.ai_time_limit {
                     search_complete = false;
                     break;
                 }
@@ -566,7 +577,7 @@ impl Board {
                     i32::MAX,
                     false,
                     start_time,
-                    time_limit,
+                    self.ai_time_limit,
                 );
 
                 // Undo move
@@ -603,13 +614,12 @@ impl Board {
     }
 
     pub fn ai_move_goat(&mut self) -> bool {
-        let time_limit = Duration::from_secs(2); // 2 seconds time limit
         let start_time = Instant::now();
         let mut current_depth = 1;
         let mut best_move = None;
         let mut best_score = i32::MAX;
 
-        while start_time.elapsed() < time_limit {
+        while start_time.elapsed() < self.ai_time_limit {
             let mut depth_best_move = None;
             let mut depth_best_score = i32::MAX;
             let mut search_complete = true;
@@ -617,7 +627,7 @@ impl Board {
             if self.goats_in_hand > 0 {
                 // Try each empty position for placement
                 for pos in 0..25 {
-                    if start_time.elapsed() >= time_limit {
+                    if start_time.elapsed() >= self.ai_time_limit {
                         search_complete = false;
                         break;
                     }
@@ -634,7 +644,7 @@ impl Board {
                             i32::MAX,
                             true,
                             start_time,
-                            time_limit,
+                            self.ai_time_limit,
                         );
 
                         // Undo move
@@ -652,7 +662,7 @@ impl Board {
                 // Move existing goats
                 let moves = self.get_all_valid_goat_moves();
                 for (from, to) in moves {
-                    if start_time.elapsed() >= time_limit {
+                    if start_time.elapsed() >= self.ai_time_limit {
                         search_complete = false;
                         break;
                     }
@@ -670,7 +680,7 @@ impl Board {
                         i32::MAX,
                         true,
                         start_time,
-                        time_limit,
+                        self.ai_time_limit,
                     );
 
                     // Undo move
